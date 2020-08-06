@@ -23,6 +23,7 @@ using Microsoft.IdentityModel.Tokens;
 using Swashbuckle.AspNetCore.Swagger;
 using TalkToApi.Database;
 using TalkToApi.Helpers;
+using TalkToApi.Helpers.Contants;
 using TalkToApi.V1.Helpers.Swagger;
 using TalkToApi.V1.Models;
 using TalkToApi.V1.Repositories;
@@ -67,6 +68,12 @@ namespace TalkToApi
                 cfg.ReturnHttpNotAcceptable = true;
                 cfg.InputFormatters.Add(new XmlSerializerInputFormatter(cfg));
                 cfg.OutputFormatters.Add(new XmlSerializerOutputFormatter());
+
+                var jsonOutputFormatter = cfg.OutputFormatters.OfType<JsonOutputFormatter>().FirstOrDefault();
+                if (jsonOutputFormatter != null)
+                {
+                    jsonOutputFormatter.SupportedMediaTypes.Add(CustomMediaType.Hateoas);
+                }
             }).
             SetCompatibilityVersion(CompatibilityVersion.Version_2_2)
             .AddJsonOptions(

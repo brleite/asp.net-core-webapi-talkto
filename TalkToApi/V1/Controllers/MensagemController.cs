@@ -7,6 +7,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.JsonPatch;
 using Microsoft.AspNetCore.Mvc;
+using TalkToApi.Helpers.Contants;
 using TalkToApi.V1.Models;
 using TalkToApi.V1.Models.DTO;
 using TalkToApi.V1.Repositories.Contracts;
@@ -28,7 +29,7 @@ namespace TalkToApi.V1.Controllers
 
         [Authorize]
         [HttpGet("{usuarioUmId}/{usuarioDoisId}", Name = "MensagemObter")]
-        public ActionResult Obter(string usuarioUmId, string usuarioDoisId)
+        public ActionResult Obter(string usuarioUmId, string usuarioDoisId, [FromHeader(Name = "Accept")]string mediaType)
         {
 
             if (usuarioUmId == usuarioDoisId)
@@ -37,17 +38,27 @@ namespace TalkToApi.V1.Controllers
             }
 
             var mensagens = _mensagemRepository.ObterMensagens(usuarioUmId, usuarioDoisId);
-            var listaMsg = _mapper.Map<List<Mensagem>, List<MensagemDTO>>(mensagens);
 
-            var lista = new ListaDTO<MensagemDTO>() { Lista = listaMsg };
-            lista.Links.Add(new LinkDTO("_self", Url.Link("MensagemObter", new { usuarioUmId = usuarioUmId, usuarioDoisId = usuarioDoisId }), "GET"));
+            if (mediaType == CustomMediaType.Hateoas)
+            {
+                var listaMsg = _mapper.Map<List<Mensagem>, List<MensagemDTO>>(mensagens);
 
-            return Ok(lista);
+                var lista = new ListaDTO<MensagemDTO>() { Lista = listaMsg };
+                lista.Links.Add(new LinkDTO("_self", Url.Link("MensagemObter", new { usuarioUmId = usuarioUmId, usuarioDoisId = usuarioDoisId }), "GET"));
+
+                return Ok(lista);
+            }
+            else
+            {
+                return Ok(mensagens);
+            }
+
+
         }
 
         [Authorize]
         [HttpPost("", Name = "MensagemCadastrar")]
-        public ActionResult Cadastrar([FromBody]Mensagem mensagem)
+        public ActionResult Cadastrar([FromBody]Mensagem mensagem, [FromHeader(Name = "Accept")]string mediaType)
         {
             if (ModelState.IsValid)
             {
@@ -55,11 +66,19 @@ namespace TalkToApi.V1.Controllers
                 {
                     _mensagemRepository.Cadastrar(mensagem);
 
-                    var mensagemDTO = _mapper.Map<Mensagem, MensagemDTO>(mensagem);
-                    mensagemDTO.Links.Add(new LinkDTO("_self", Url.Link("MensagemCadastrar", null), "POST"));
-                    mensagemDTO.Links.Add(new LinkDTO("_atualizacaoParcial", Url.Link("MensagemAtualizacaoParcial", new { id = mensagem.Id }), "PATCH"));
+                    if (mediaType == CustomMediaType.Hateoas)
+                    {
+                        var mensagemDTO = _mapper.Map<Mensagem, MensagemDTO>(mensagem);
+                        mensagemDTO.Links.Add(new LinkDTO("_self", Url.Link("MensagemCadastrar", null), "POST"));
+                        mensagemDTO.Links.Add(new LinkDTO("_atualizacaoParcial", Url.Link("MensagemAtualizacaoParcial", new { id = mensagem.Id }), "PATCH"));
 
-                    return Ok(mensagemDTO);
+                        return Ok(mensagemDTO);
+                    }
+                    else
+                    {
+                        return Ok(mensagem);
+                    }
+
                 }
                 catch (Exception e)
                 {
@@ -76,7 +95,7 @@ namespace TalkToApi.V1.Controllers
         [MapToApiVersion("1.0")]
         [Authorize]
         [HttpPatch("{id}", Name = "MensagemAtualizacaoParcial")]
-        public ActionResult AtualizacaoParcial(int id, [FromBody]JsonPatchDocument<Mensagem> jsonPatch)
+        public ActionResult AtualizacaoParcial(int id, [FromBody]JsonPatchDocument<Mensagem> jsonPatch, [FromHeader(Name = "Accept")]string mediaType)
         {
             if (jsonPatch == null)
             {
@@ -93,11 +112,18 @@ namespace TalkToApi.V1.Controllers
 
             _mensagemRepository.Atualizar(mensagem);
 
+            if (mediaType == CustomMediaType.Hateoas)
+            {
+                var mensagemDTO = _mapper.Map<Mensagem, MensagemDTO>(mensagem);
+                mensagemDTO.Links.Add(new LinkDTO("_self", Url.Link("MensagemAtualizacaoParcial", new { id = mensagem.Id }), "PATCH"));
 
-            var mensagemDTO = _mapper.Map<Mensagem, MensagemDTO>(mensagem);
-            mensagemDTO.Links.Add(new LinkDTO("_self", Url.Link("MensagemAtualizacaoParcial", new { id = mensagem.Id }), "PATCH"));
+                return Ok(mensagemDTO);
+            }
+            else
+            {
+                return Ok(mensagem);
+            }
 
-            return Ok(mensagemDTO);
         }
     }
 }

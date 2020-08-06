@@ -15,6 +15,9 @@ namespace TalkToApi.Helpers
             CreateMap<ApplicationUser, UsuarioDTO>()
                 .ForMember(dest => dest.Nome, orig => orig.MapFrom(src => src.FullName));
 
+            CreateMap<ApplicationUser, UsuarioDTOSemHyperlink>()
+                .ForMember(dest => dest.Nome, orig => orig.MapFrom(src => src.FullName));
+
             CreateMap<Mensagem, MensagemDTO>();
             //CreateMap<PaginationList<Palavra>, PaginationList<PalavraDTO>>();
         }
