@@ -11,6 +11,9 @@ using TalkToApi.V1.Models;
 using System.Text;
 using System.Security.Claims;
 using TalkToApi.V1.Repositories.Contracts;
+using TalkToApi.V1.Models.DTO;
+using Microsoft.AspNetCore.Authorization;
+using AutoMapper;
 
 namespace TalkToApi.V1.Controllers
 {
@@ -19,18 +22,57 @@ namespace TalkToApi.V1.Controllers
     [ApiVersion("1.0")]
     public class UsuarioController : ControllerBase
     {
+        private readonly IMapper _mapper;
         private readonly IUsuarioRepository _usuarioRepository;
         private readonly ITokenRepository _tokenRepository;
         private readonly SignInManager<ApplicationUser> _signInManager;
         private readonly UserManager<ApplicationUser> _userManager;
-        public UsuarioController(IUsuarioRepository usuarioRepository, ITokenRepository tokenRepository, SignInManager<ApplicationUser> signInManager, UserManager<ApplicationUser> userManager)
+        public UsuarioController(IMapper mapper, IUsuarioRepository usuarioRepository, ITokenRepository tokenRepository, SignInManager<ApplicationUser> signInManager, UserManager<ApplicationUser> userManager)
         {
+            _mapper = mapper;
             _usuarioRepository = usuarioRepository;
             _signInManager = signInManager;
             _userManager = userManager;
             _tokenRepository = tokenRepository;
         }
 
+        [MapToApiVersion("1.0")]
+        [Authorize]
+        [HttpGet("", Name = "UsuarioObterTodos")]
+        public ActionResult ObterTodos()
+        {
+            var usuariosAppUser = _userManager.Users.ToList();
+
+            var listaUsuarioDTO = _mapper.Map<List<ApplicationUser>, List<UsuarioDTO>>(usuariosAppUser);
+
+            foreach (var usuarioDTO in listaUsuarioDTO)
+            {
+                usuarioDTO.Links.Add(new LinkDTO("_self", Url.Link("UsuarioObter", new { id = usuarioDTO.Id }), "GET"));
+            }
+
+            var lista = new ListaDTO<UsuarioDTO>() { Lista = listaUsuarioDTO };
+            lista.Links.Add(new LinkDTO("_self", Url.Link("UsuarioObterTodos", null), "GET"));
+
+            return Ok(lista);
+        }
+
+        [MapToApiVersion("1.0")]
+        [HttpGet("{id}", Name = "UsuarioObter")]
+        public ActionResult ObterUsuario(string id)
+        {
+            var usuario = _userManager.FindByIdAsync(id).Result;
+            if (usuario == null)
+                return NotFound();
+
+
+            var usuarioDTOdb = _mapper.Map<ApplicationUser, UsuarioDTO>(usuario);
+            usuarioDTOdb.Links.Add(new LinkDTO("_self", Url.Link("UsuarioObter", new { id = usuario.Id }), "GET"));
+            usuarioDTOdb.Links.Add(new LinkDTO("_atualizar", Url.Link("UsuarioAtualizar", new { id = usuario.Id }), "PUT"));
+
+            return Ok(usuarioDTOdb);
+        }
+
+        [MapToApiVersion("1.0")]
         [HttpPost("login")]
         public ActionResult Login([FromBody]UsuarioDTO usuarioDTO)
         {
@@ -61,7 +103,7 @@ namespace TalkToApi.V1.Controllers
         }
 
 
-
+        [MapToApiVersion("1.0")]
         [HttpPost("renovar")]
         public ActionResult Renovar([FromBody]TokenDTO tokenDTO)
         {
@@ -81,7 +123,8 @@ namespace TalkToApi.V1.Controllers
             return GerarToken(usuario);
         }
 
-        [HttpPost("")]
+        [MapToApiVersion("1.0")]
+        [HttpPost("", Name = "UsuarioCadastrar")]
         public ActionResult Cadastrar([FromBody]UsuarioDTO usuarioDTO)
         {
             if (ModelState.IsValid)
@@ -104,9 +147,66 @@ namespace TalkToApi.V1.Controllers
                 }
                 else
                 {
-                    return Ok(usuario);
+                    var usuarioDTOdb = _mapper.Map<ApplicationUser, UsuarioDTO>(usuario);
+                    usuarioDTOdb.Links.Add(new LinkDTO("_self", Url.Link("UsuarioCadastrar", new { id = usuario.Id }), "POST"));
+                    usuarioDTOdb.Links.Add(new LinkDTO("_obter", Url.Link("UsuarioObter", new { id = usuario.Id }), "GET"));
+                    usuarioDTOdb.Links.Add(new LinkDTO("_atualizar", Url.Link("UsuarioAtualizar", new { id = usuario.Id }), "PUT"));
+
+                    return Ok(usuarioDTOdb);
                 }
 
+            }
+            else
+            {
+                return UnprocessableEntity(ModelState);
+            }
+        }
+
+        /*
+         * api/usuario/{id} -> PUT
+         */
+        [MapToApiVersion("1.0")]
+        [Authorize]
+        [HttpPut("{id}", Name = "UsuarioAtualizar")]
+        public ActionResult Atualizar(string id, [FromBody]UsuarioDTO usuarioDTO)
+        {
+            //TODO - Adicionar Filtro de Validação
+            ApplicationUser usuario = _userManager.GetUserAsync(HttpContext.User).Result;
+            if (usuario.Id != id)
+            {
+                return Forbid();
+            }
+
+            if (ModelState.IsValid)
+            {
+                //TODO - Refatorar para AutoMapper.
+                usuario.FullName = usuarioDTO.Nome;
+                usuario.UserName = usuarioDTO.Email;
+                usuario.Email = usuarioDTO.Email;
+                usuario.Slogan = usuarioDTO.Slogan;
+
+                //TODO - Remover no Identity critérios da senha.
+                var resultado = _userManager.UpdateAsync(usuario).Result;
+                _userManager.RemovePasswordAsync(usuario);
+                _userManager.AddPasswordAsync(usuario, usuarioDTO.Senha);
+
+                if (!resultado.Succeeded)
+                {
+                    List<string> erros = new List<string>();
+                    foreach (var erro in resultado.Errors)
+                    {
+                        erros.Add(erro.Description);
+                    }
+                    return UnprocessableEntity(erros);
+                }
+                else
+                {
+                    var usuarioDTOdb = _mapper.Map<ApplicationUser, UsuarioDTO>(usuario);
+                    usuarioDTOdb.Links.Add(new LinkDTO("_self", Url.Link("UsuarioAtualizar", new { id = usuario.Id }), "PUT"));
+                    usuarioDTOdb.Links.Add(new LinkDTO("_obter", Url.Link("UsuarioObter", new { id = usuario.Id }), "GET"));
+
+                    return Ok(usuarioDTOdb);
+                }
             }
             else
             {
