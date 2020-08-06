@@ -63,6 +63,30 @@ namespace TalkToApi
                 options.UseMySql(Configuration.GetConnectionString("TalkToContext"), builder =>
                     builder.MigrationsAssembly("TalkToApi")));
 
+            /*
+             * Origin: 
+             *      Domínio(Sub): api.site.com.br != www.site.com.br != web.site.com.br != www.empresa.com.br
+             *      Domínio(Protocolo): http://www.site.com.br != https://www.site.com.br
+             *      Domínio(Porta): http://www.site.com.br:80 != http://www.site.com.br:367
+             *      
+             */
+            services.AddCors(cfg => {
+                cfg.AddDefaultPolicy(policy => {
+                    policy
+                        .WithOrigins("https://localhost:44376", "http://localhost:44376")
+                        .AllowAnyMethod()
+                        .SetIsOriginAllowedToAllowWildcardSubdomains() //Habilitar CORS para todos os Subdomínios
+                        .AllowAnyHeader();
+                });
+
+                //Habilitar todos os site, com restrição.
+                cfg.AddPolicy("AnyOrigin", policy => {
+                    policy.AllowAnyOrigin()
+                          .WithMethods("GET")
+                          .AllowAnyHeader();
+                });
+            });
+
             services.AddMvc(cfg =>
             {
                 cfg.ReturnHttpNotAcceptable = true;
@@ -136,7 +160,14 @@ namespace TalkToApi
 
             });
 
-            services.AddIdentity<ApplicationUser, IdentityRole>()
+            services.AddIdentity<ApplicationUser, IdentityRole>(options =>
+            {
+                options.Password.RequireDigit = false;
+                options.Password.RequiredLength = 5;
+                options.Password.RequireLowercase = false;
+                options.Password.RequireUppercase = false;
+                options.Password.RequireNonAlphanumeric = false; //(a-A-0-9)
+            })
                     .AddEntityFrameworkStores<TalkToContext>()
                     .AddDefaultTokenProviders();
 
@@ -191,6 +222,7 @@ namespace TalkToApi
             app.UseStatusCodePages();
             app.UseAuthentication();
             app.UseHttpsRedirection();
+            //app.UseCors("AnyOrigin"); //Desabilite quando for usar Attributos EnableCors/DisableCors.
             app.UseMvc();
 
             app.UseSwagger(); // /swagger/v1/swagger.json

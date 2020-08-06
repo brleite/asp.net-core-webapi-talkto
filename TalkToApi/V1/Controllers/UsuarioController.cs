@@ -15,12 +15,14 @@ using TalkToApi.V1.Models.DTO;
 using Microsoft.AspNetCore.Authorization;
 using AutoMapper;
 using TalkToApi.Helpers.Contants;
+using Microsoft.AspNetCore.Cors;
 
 namespace TalkToApi.V1.Controllers
 {
     [Route("api/[controller]")]
     [ApiController]
     [ApiVersion("1.0")]
+    [EnableCors("AnyOrigin")]
     public class UsuarioController : ControllerBase
     {
         private readonly IMapper _mapper;
@@ -40,6 +42,7 @@ namespace TalkToApi.V1.Controllers
         [MapToApiVersion("1.0")]
         [Authorize]
         [HttpGet("", Name = "UsuarioObterTodos")]
+        [DisableCors]
         public ActionResult ObterTodos([FromHeader(Name = "Accept")]string mediaType)
         {
             var usuariosAppUser = _userManager.Users.ToList();
@@ -146,10 +149,7 @@ namespace TalkToApi.V1.Controllers
         {
             if (ModelState.IsValid)
             {
-                ApplicationUser usuario = new ApplicationUser();
-                usuario.FullName = usuarioDTO.Nome;
-                usuario.UserName = usuarioDTO.Email;
-                usuario.Email = usuarioDTO.Email;
+                ApplicationUser usuario = _mapper.Map<UsuarioDTO, ApplicationUser>(usuarioDTO);
 
                 var resultado = _userManager.CreateAsync(usuario, usuarioDTO.Senha).Result;
 
@@ -210,7 +210,6 @@ namespace TalkToApi.V1.Controllers
                 usuario.Email = usuarioDTO.Email;
                 usuario.Slogan = usuarioDTO.Slogan;
 
-                //TODO - Remover no Identity critérios da senha.
                 var resultado = _userManager.UpdateAsync(usuario).Result;
                 _userManager.RemovePasswordAsync(usuario);
                 _userManager.AddPasswordAsync(usuario, usuarioDTO.Senha);
